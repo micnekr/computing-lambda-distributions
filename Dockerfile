@@ -8,13 +8,14 @@ USER root
 # Create user with uid 1000
 ARG NB_USER=user
 ARG NB_UID=1000
-ENV NB_USER user
-ENV NB_UID 1000
-ENV HOME /home/${NB_USER}
+ENV NB_USER=user
+ENV NB_UID=1000
+ENV HOME=/home/${NB_USER}
 RUN adduser --disabled-password --gecos "Default user" --uid ${NB_UID} ${NB_USER}
 
 # Make sure the contents of the notebooks directory are in ${HOME}
-COPY notebooks/* ${HOME}/
+COPY src ${HOME}/src
+COPY lib ${HOME}/lib
 RUN chown -R ${NB_USER}:${NB_USER} ${HOME}
 
 # Switch to the user

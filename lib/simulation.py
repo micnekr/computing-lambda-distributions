@@ -10,14 +10,17 @@ def matrix_to_eigenvalues(M):
 
 
 def approximate_sigma_mgf(
-    generate_X,
-    order,
+    generate_X,  # A function that when called, produces a random list of eigenvalues
+    num_eigenvalues,  # The expected number of eigenvalues (including multiplicities)
+    partition_size,  # partitions up to this size will be included in calculations
     stopping_std,  # Approximate standard deviation of the output variables which is acceptable
     min_num_samples=10,  # We won't stop if less then this number of samples have been considered
+    max_num_samples=100,  # We don't want to compute this forever, so abort if taking too long. If none, don't stop
+    print_extra_info=True,
 ):
     # Idea: use a simple Monte Carlo method; also find empirical variance of data and
     # use it and CLT to estimate the variance of the entries
-    # For each permutation \tau corresponding to m_\tau of order at most `order`,
+    # For each permutation \tau corresponding to m_\tau of size at most `partition_size`,
     # we estimate \mathbb{E}[X_{h_\tau}]
 
     assert min_num_samples > 1, "Have to use at least 2 samples"
@@ -25,14 +28,22 @@ def approximate_sigma_mgf(
     Sym = SymmetricFunctions(ZZ)
     h = Sym.complete()
 
+    num_samples = 0
+
+    X = generate_X()
+    all_partitions_and_polys = []
+    for i in range(1, partition_size + 1):
+        for partition in Partitions(i):
+            all_partitions_and_polys.append(
+                (partition, h(partition).expand(num_eigenvalues))
+            )
+
     sums_of_coefficients = {
-        p: CDF(0) for p in Partitions(order)
+        p: CDF(0) for p, _ in all_partitions_and_polys
     }  # For \mathbb{E}[X_{h_\tau}]
     sums_of_abs_squares_of_coefficients = {
-        p: CDF(0) for p in Partitions(order)
+        p: CDF(0) for p, _ in all_partitions_and_polys
     }  # For Var[X_{h_\tau}
-
-    num_samples = 0
 
     def get_sample_variance(partition):
         return (
@@ -40,8 +51,23 @@ def approximate_sigma_mgf(
             - (abs(sums_of_coefficients[partition]) ** 2) / (num_samples)
         ) / (num_samples - 1)
 
+    sample_index = 1
     while True:
+
+        # Notify about progress every 100 samples
+        should_print_extra_info = (
+            sample_index % 100 == 0
+        ) and print_extra_info
+        if should_print_extra_info:
+            if max_num_samples is not None:
+                print(f"Processing sample {sample_index}/{max_num_samples}")
+            else:
+                print(f"Processing sample {sample_index}")
+
         X = generate_X()
+        assert (
+            len(X) == num_eigenvalues
+        ), f"The multiset of eigenvalues should have size {num_eigenvalues}, not {len(X)}"
 
         max_variance = 0
         num_samples += 1
@@ -52,10 +78,8 @@ def approximate_sigma_mgf(
         else:
             all_samples_have_low_enough_variance = True
 
-        for partition in Partitions(order):
-            coefficient = h(partition).expand(len(X))(*X)
-
-            coefficient = CDF(coefficient)
+        for partition, poly in all_partitions_and_polys:
+            coefficient = CDF(poly(*X))
 
             sums_of_coefficients[partition] += coefficient
             sums_of_abs_squares_of_coefficients[partition] += abs(
@@ -67,19 +91,27 @@ def approximate_sigma_mgf(
                 continue
 
             sample_variance = get_sample_variance(partition)
+            if should_print_extra_info:
+                print(
+                    f"Sample variance for {partition} is {sample_variance}; estimate variance is {(sample_variance / sqrt(num_samples)).n()}"
+                )
             # Apply CLT to estimate variance of this specific entry
             if sample_variance > sqrt(num_samples) * stopping_std**2:
                 all_samples_have_low_enough_variance = False
 
-        if all_samples_have_low_enough_variance:
-            expectations = {
-                p: sums_of_coefficients[p] / num_samples
-                for p in Partitions(order)
-            }
-            stds = {
-                p: (
-                    sqrt(get_sample_variance(partition) / sqrt(num_samples))
-                ).n()
-                for p in Partitions(order)
-            }
-            return expectations, stds
+        sample_index += 1
+        if all_samples_have_low_enough_variance or (
+            max_num_samples is not None and sample_index > max_num_samples
+        ):
+            break
+
+    # After the loop
+    expectations = {
+        p: sums_of_coefficients[p] / num_samples
+        for p, _ in all_partitions_and_polys
+    }
+    stds = {
+        p: (sqrt(get_sample_variance(partition) / sqrt(num_samples))).n()
+        for p, _ in all_partitions_and_polys
+    }
+    return expectations, stds

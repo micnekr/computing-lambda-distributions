@@ -110,8 +110,12 @@ def approximate_sigma_mgf(
         p: sums_of_coefficients[p] / num_samples
         for p, _ in all_partitions_and_polys
     }
-    stds = {
-        p: (sqrt(get_sample_variance(partition) / sqrt(num_samples))).n()
+    estimation_stds = {
+        p: (sqrt(get_sample_variance(p) / sqrt(num_samples))).n()
         for p, _ in all_partitions_and_polys
     }
-    return expectations, stds
+    sample_stds = {
+        p: sqrt(get_sample_variance(p)).n()
+        for p, _ in all_partitions_and_polys
+    }
+    return expectations, estimation_stds, sample_stds

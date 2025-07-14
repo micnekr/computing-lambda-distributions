@@ -1,10 +1,14 @@
-let
-  pkgs = import <nixpkgs> {};
-in pkgs.mkShell {
-  packages = [
-    pkgs.sage
-  ];
-}
+# let
+#   pkgs = import <nixpkgs> {};
+# in pkgs.mkShell {
+#   packages = [
+    # pkgs.sage
+#   ];
+#
+#   shellHook = ''
+#     fish -C "source .venv/bin/activate.fish"
+#   '';
+# }
 # { pkgs ? import <nixpkgs> {}, pythonPackages ? pkgs.python313Packages }:
 #
 # let
@@ -29,3 +33,27 @@ in pkgs.mkShell {
 #     alias start="jupyter lab"
 #   '';
 # }
+
+{ pkgs ? import <nixpkgs> {} }:
+let lib-path = with pkgs; lib.makeLibraryPath [
+    libffi
+    openssl
+    stdenv.cc.cc
+  ];
+in
+(pkgs.mkShell {
+  packages = [
+    pkgs.sage
+  ];
+  buildInputs = with pkgs; [
+    python313
+    python313Packages.pip
+    python313Packages.virtualenv
+  ];
+  shellHook = ''
+      fish -C "source .venv/bin/activate.fish"; exit
+    '';
+  env = {
+      LD_LIBRARY_PATH="${lib-path}";
+    };
+})

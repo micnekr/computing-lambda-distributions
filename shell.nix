@@ -40,6 +40,9 @@ let lib-path = with pkgs; lib.makeLibraryPath [
     openssl
     stdenv.cc.cc
   ];
+  kernels = [
+        pkgs.sage
+    ];
 in
 (pkgs.mkShell {
   packages = [
@@ -51,6 +54,11 @@ in
     python313Packages.virtualenv
   ];
   shellHook = ''
+      # kernels
+      export JUPYTER_PATH="${pkgs.lib.concatMapStringsSep ":" (p: "${p}/share/jupyter/") kernels}"
+      # Add sage jupyter kernel by running first few lines of setup for sage
+      source <(head -n 8 $(which sage))
+      jupyter kernelspec install --user $JUPYTER_PATH/kernels/sagemath
       fish -C "source .venv/bin/activate.fish"; exit
     '';
   env = {
